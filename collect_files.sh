@@ -32,67 +32,8 @@ if [ ! -d "$INPUT_DIR" ]; then
     exit 1
 fi
 
-mkdir -p "$OUTPUT_DIR"
-
-process_files() {
-    local source_dir="$1"
-    local dest_dir="$2"
-    local current_depth="$3"
-
-    for file in "$source_dir"/*; do
-        if [ -f "$file" ]; then
-            local filename=$(basename "$file")
-            local target_dir="$dest_dir"
-            if [ "$MAX_DEPTH_ENABLED" = false ]; then
-                target_dir="$OUTPUT_DIR"
-            fi
-
-            local dest_file="$target_dir/$filename"
-
-            if [ -f "$dest_file" ]; then
-                local base="${filename%.*}"
-                local ext="${filename##*.}"
-                local counter=1
-
-                if [ "$base" = "$ext" ]; then
-                    while [ -f "$target_dir/${base}${counter}" ]; do
-                        ((counter++))
-                    done
-                    cp "$file" "$target_dir/${base}${counter}"
-                else
-                    while [ -f "$target_dir/${base}${counter}.${ext}" ]; do
-                        ((counter++))
-                    done
-                    cp "$file" "$target_dir/${base}${counter}.${ext}"
-                fi
-            else
-                cp "$file" "$dest_file"
-            fi
-        fi
-    done
-
-    for dir in "$source_dir"/*; do
-        if [ -d "$dir" ]; then
-            if [ "$MAX_DEPTH_ENABLED" = true ]; then
-                if [ "$current_depth" -lt "$MAX_DEPTH" ]; then
-                    local dir_name=$(basename "$dir")
-                    local new_dest="$dest_dir/$dir_name"
-                    mkdir -p "$new_dest"
-                    process_files "$dir" "$new_dest" $((current_depth + 1))
-                else
-                    local rel_path="${dir#$INPUT_DIR/}"
-                    local new_dest="$OUTPUT_DIR/$rel_path"
-                    mkdir -p "$new_dest"
-                    cp -r "$dir"/* "$new_dest/" 2>/dev/null || true
-                fi
-            else
-                process_files "$dir" "$dest_dir" $((current_depth + 1))
-            fi
-        fi
-    done
-}
-
-process_files "$INPUT_DIR" "$OUTPUT_DIR" 1
-
-echo "копирование файлов завершено."
-exit 0
+if [ "$MAX_DEPTH_ENABLED" = true ]; then
+    python3 collect_files.py "$INPUT_DIR" "$OUTPUT_DIR" --max_depth "$MAX_DEPTH"
+else
+    python3 collect_files.py "$INPUT_DIR" "$OUTPUT_DIR"
+fi
