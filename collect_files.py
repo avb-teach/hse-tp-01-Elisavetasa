@@ -16,11 +16,9 @@ def collect_files(input_dir: str, output_dir: str, max_depth: int = None) -> Non
     def process_directory(current_dir: Path, current_depth: int = 1) -> None:
         for item in current_dir.iterdir():
             if item.is_file():
-                target_dir = output_path
-                if max_depth is not None:
-                    rel_path = item.relative_to(input_path)
-                    target_dir = output_path / rel_path.parent
-                    target_dir.mkdir(parents=True, exist_ok=True)
+                rel_path = item.relative_to(input_path)
+                target_dir = output_path / rel_path.parent
+                target_dir.mkdir(parents=True, exist_ok=True)
                 
                 dest_file = target_dir / item.name
                 if dest_file.exists():
@@ -41,13 +39,23 @@ def collect_files(input_dir: str, output_dir: str, max_depth: int = None) -> Non
                 
                 shutil.copy2(item, dest_file)
             
-            elif item.is_dir() and (max_depth is None or current_depth < max_depth):
-                process_directory(item, current_depth + 1)
-            elif item.is_dir() and max_depth is not None and current_depth >= max_depth:
-                rel_path = item.relative_to(input_path)
-                target_dir = output_path / rel_path
-                target_dir.mkdir(parents=True, exist_ok=True)
-                shutil.copytree(item, target_dir, dirs_exist_ok=True)
+            elif item.is_dir():
+                if max_depth is None or current_depth < max_depth:
+                    process_directory(item, current_depth + 1)
+                else:
+                    rel_path = item.relative_to(input_path)
+                    target_dir = output_path / rel_path
+                    target_dir.mkdir(parents=True, exist_ok=True)
+                    
+                    for file_item in item.iterdir():
+                        if file_item.is_file():
+                            shutil.copy2(file_item, target_dir / file_item.name)
+                        elif file_item.is_dir():
+                            sub_target = target_dir / file_item.name
+                            sub_target.mkdir(parents=True, exist_ok=True)
+                            for sub_item in file_item.iterdir():
+                                if sub_item.is_file():
+                                    shutil.copy2(sub_item, sub_target / sub_item.name)
     
     process_directory(input_path)
 
