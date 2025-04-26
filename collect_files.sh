@@ -38,25 +38,6 @@ process_files() {
     local source_dir="$1"
     local dest_dir="$2"
     local current_depth="$3"
-    if [ "$MAX_DEPTH_ENABLED" = true ] && [ "$current_depth" -gt "$MAX_DEPTH" ]; then
-        local rel_path="${source_dir#$INPUT_DIR/}"
-        local new_dest="$OUTPUT_DIR/$rel_path"
-        mkdir -p "$(dirname "$new_dest")"
-
-        for file in "$source_dir"/*; do
-            if [ -f "$file" ]; then
-                cp "$file" "$new_dest/"
-            fi
-        done
-
-        for dir in "$source_dir"/*; do
-            if [ -d "$dir" ]; then
-                local dir_name=$(basename "$dir")
-                process_files "$dir" "$dest_dir" $((current_depth + 1))
-            fi
-        done
-        return
-    fi
 
     for file in "$source_dir"/*; do
         if [ -f "$file" ]; then
@@ -82,23 +63,28 @@ process_files() {
             else
                 cp "$file" "$dest_file"
             fi
-        elif [ -d "$file" ]; then
+        fi
+    done
+
+    for dir in "$source_dir"/*; do
+        if [ -d "$dir" ]; then
             if [ "$MAX_DEPTH_ENABLED" = true ]; then
                 if [ "$current_depth" -lt "$MAX_DEPTH" ]; then
-                    local dir_name=$(basename "$file")
+                    local dir_name=$(basename "$dir")
                     local new_dest="$dest_dir/$dir_name"
                     mkdir -p "$new_dest"
-
-                    process_files "$file" "$new_dest" $((current_depth + 1))
+                    process_files "$dir" "$new_dest" $((current_depth + 1))
                 else
-                    local rel_path="${file#$INPUT_DIR/}"
+                    local rel_path="${dir#$INPUT_DIR/}"
                     local new_dest="$OUTPUT_DIR/$rel_path"
                     mkdir -p "$new_dest"
-
-                    cp -r "$file"/* "$new_dest/" 2>/dev/null || true
+                    cp -r "$dir"/* "$new_dest/" 2>/dev/null || true
                 fi
             else
-                process_files "$file" "$dest_dir" $((current_depth + 1))
+                local dir_name=$(basename "$dir")
+                local new_dest="$dest_dir/$dir_name"
+                mkdir -p "$new_dest"
+                process_files "$dir" "$new_dest" $((current_depth + 1))
             fi
         fi
     done
