@@ -42,7 +42,12 @@ process_files() {
     for file in "$source_dir"/*; do
         if [ -f "$file" ]; then
             local filename=$(basename "$file")
-            local dest_file="$dest_dir/$filename"
+            local target_dir="$dest_dir"
+            if [ "$MAX_DEPTH_ENABLED" = false ]; then
+                target_dir="$OUTPUT_DIR"
+            fi
+
+            local dest_file="$target_dir/$filename"
 
             if [ -f "$dest_file" ]; then
                 local base="${filename%.*}"
@@ -50,15 +55,15 @@ process_files() {
                 local counter=1
 
                 if [ "$base" = "$ext" ]; then
-                    while [ -f "$dest_dir/${base}${counter}" ]; do
+                    while [ -f "$target_dir/${base}${counter}" ]; do
                         ((counter++))
                     done
-                    cp "$file" "$dest_dir/${base}${counter}"
+                    cp "$file" "$target_dir/${base}${counter}"
                 else
-                    while [ -f "$dest_dir/${base}${counter}.${ext}" ]; do
+                    while [ -f "$target_dir/${base}${counter}.${ext}" ]; do
                         ((counter++))
                     done
-                    cp "$file" "$dest_dir/${base}${counter}.${ext}"
+                    cp "$file" "$target_dir/${base}${counter}.${ext}"
                 fi
             else
                 cp "$file" "$dest_file"
@@ -81,10 +86,7 @@ process_files() {
                     cp -r "$dir"/* "$new_dest/" 2>/dev/null || true
                 fi
             else
-                local dir_name=$(basename "$dir")
-                local new_dest="$dest_dir/$dir_name"
-                mkdir -p "$new_dest"
-                process_files "$dir" "$new_dest" $((current_depth + 1))
+                process_files "$dir" "$dest_dir" $((current_depth + 1))
             fi
         fi
     done
@@ -94,4 +96,3 @@ process_files "$INPUT_DIR" "$OUTPUT_DIR" 1
 
 echo "копирование файлов завершено."
 exit 0
-
