@@ -14,17 +14,15 @@ OUTPUT_DIR="$2"
 MAX_DEPTH_ENABLED=false
 MAX_DEPTH=0
 
-if [ $# -gt 2 ]; then
-    if [ "$3" == "--max_depth" ] && [ $# -eq 4 ]; then
+if [ $# -eq 4 ]; then
+    if [ "$3" = "--max_depth" ] && [[ "$4" =~ ^[0-9]+$ ]]; then
         MAX_DEPTH_ENABLED=true
         MAX_DEPTH="$4"
-        if ! [[ "$MAX_DEPTH" =~ ^[0-9]+$ ]]; then
-            echo "ошибка: --max_depth должен быть положительным числом"
-            exit 1
-        fi
     else
         usage
     fi
+elif [ $# -gt 2 ]; then
+    usage
 fi
 
 if [ ! -d "$INPUT_DIR" ]; then
@@ -34,77 +32,43 @@ fi
 
 mkdir -p "$OUTPUT_DIR"
 
-process_files() {
-    local source_dir="$1"
-    local dest_dir="$2"
-    local current_depth="$3"
+find "$INPUT_DIR" -type f | while IFS= read -r file; do
+    rel_path="${file#"$INPUT_DIR"/}"
+    IFS='/' read -r -a seg <<< "$rel_path"
+    k=${#seg[@]}
 
-    if [ "$MAX_DEPTH_ENABLED" = true ] && [ "$current_depth" -gt "$MAX_DEPTH" ]; then
-        local rel_path="${source_dir#$INPUT_DIR/}"
-        local new_dest="$OUTPUT_DIR/$rel_path"
-        mkdir -p "$(dirname "$new_dest")"
-        for file in "$source_dir"/*; do
-            if [ -f "$file" ]; then
-                cp "$file" "$new_dest/"
-            fi
+    if $MAX_DEPTH_ENABLED && [ "$k" -gt "$MAX_DEPTH" ]; then
+        start_idx=$((k - MAX_DEPTH))
+        target_rel=""
+        for ((i = start_idx; i < k; i++)); do
+            target_rel="$target_rel/${seg[i]}"
         done
-
-        for dir in "$source_dir"/*; do
-            if [ -d "$dir" ]; then
-                local dir_name=$(basename "$dir")
-                process_files "$dir" "$dest_dir" $((current_depth + 1))
-            fi
-        done
-        return
+        target_rel="${target_rel#/}"
+    else
+        target_rel="$rel_path"
     fi
 
-    for file in "$source_dir"/*; do
-        if [ -f "$file" ]; then
-            local filename=$(basename "$file")
-            local dest_file="$dest_dir/$filename"
+    dest="$OUTPUT_DIR/$target_rel"
+    dest_dir=$(dirname "$dest")
+    mkdir -p "$dest_dir"
 
-            if [ -f "$dest_file" ]; then
-                local base="${filename%.*}"
-                local ext="${filename##*.}"
-                local counter=1 
-
-                if [ "$base" = "$ext" ]; then
-                    while [ -f "$dest_dir/${base}${counter}" ]; do
-                        ((counter++))
-                    done
-                    cp "$file" "$dest_dir/${base}${counter}"
-                else
-                    while [ -f "$dest_dir/${base}${counter}.${ext}" ]; do
-                        ((counter++)) 
-                    done
-                    cp "$file" "$dest_dir/${base}${counter}.${ext}" 
-                fi
-            else
-                cp "$file" "$dest_file"
-            fi
-        elif [ -d "$file" ]; then
-            if [ "$MAX_DEPTH_ENABLED" = true ]; then
-                if [ "$current_depth" -lt "$MAX_DEPTH" ]; then
-                    local dir_name=$(basename "$file")
-                    local new_dest="$dest_dir/$dir_name"
-                    mkdir -p "$new_dest" 
-
-                    process_files "$file" "$new_dest" $((current_depth + 1))
-                else
-                    local rel_path="${file#$INPUT_DIR/}"
-                    local new_dest="$OUTPUT_DIR/$rel_path"
-                    mkdir -p "$new_dest"
-                    cp -r "$file"/* "$new_dest/" 2>/dev/null || true
-                fi
-            else
-                process_files "$file" "$dest_dir" $((current_depth + 1))
-            fi
+    if [ -e "$dest" ]; then
+        filename=$(basename "$dest")
+        if [[ "$filename" == *.* ]]; then
+            name="${filename%.*}"
+            ext=".${filename##*.}"
+        else
+            name="$filename"
+            ext=""
         fi
-    done
-}
+        counter=1
+        while [ -e "$dest_dir/${name}${counter}${ext}" ]; do
+            ((counter++))
+        done
+        dest="$dest_dir/${name}${counter}${ext}"
+    fi
 
-process_files "$INPUT_DIR" "$OUTPUT_DIR" 1
+    cp "$file" "$dest"
+done
 
-echo "копирование файлов завершено."
-exit 0
-
+echo "копирование завершено."
